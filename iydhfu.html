@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Country Select with Flags and Auto Detect</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .trigger-btn {
+            background-color: #f0f0f0;
+            border: none;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            gap: 8px;
+            border-radius: 8px;
+        }
+        .popup {
+            display: none;
+            position: absolute;
+            top: 50px;
+            left: 20px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 20px;
+            width: 300px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .popup label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 25px;
+        }
+        .dropdown { position: relative; margin-bottom: 10px; }
+        .dropdown input {
+            width: 100%;
+            border-radius: 6px;
+            background-color: #f0f0f0;
+            border: none;
+            padding: 15px 15px 15px 25px;
+            box-sizing: border-box;
+        }
+        .dropdown input:focus { outline: none; }
+        .dropdown-in123 { position: relative; }
+        .dropdown-in123 i {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: .5vw;
+        }
+        .dropdown-list {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+            width: 100%;
+            display: none;
+            z-index: 100;
+            scrollbar-width: none;
+        }
+        .dropdown-list div {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .dropdown-list div:hover { background: #eee; }
+        .save-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 20px;
+            background-color: black;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+        img.flag-icon {
+            width: 24px;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+<button class="trigger-btn" onclick="togglePopup()" id="triggerBtn">
+    Loading...
+</button>
+
+<div class="popup" id="popupMenu">
+    <label>Ship to</label>
+    <div class="dropdown">
+        <div class="dropdown-in123">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input placeholder="Search country..." id="countryInput" onkeyup="filterDropdown()">
+        </div>
+        <div class="dropdown-list" id="countryDropdown"></div>
+    </div>
+
+    <button class="save-btn" onclick="saveSettings()">Save</button>
+</div>
+
+<script>
+    let selectedCountry = {};
+    let countriesData = [];
+    let isCountryLoaded = false;
+
+    function togglePopup() {
+        if (!isCountryLoaded) return;
+        const popup = document.getElementById('popupMenu');
+        popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+    }
+
+    fetch('./cuntrys.json').then(res => res.json()).then(data => {
+        countriesData = data;
+        fillDropdown(data);
+        detectUserCountry();
+    }).catch(err => {
+        console.error('Error loading countries:', err);
+    });
+
+    function fillDropdown(items) {
+        const dropdown = document.getElementById('countryDropdown');
+        dropdown.innerHTML = "";
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.innerHTML = `<img class="flag-icon" src="/flags/4x3/${item.flag}.svg"> <span>${item.country}</span>`;
+            div.onclick = () => {
+                document.getElementById('countryInput').value = item.country;
+                selectedCountry = {
+                    country: item.country,
+                    flag: item.flag,
+                    language: item.language,
+                    currency: item.currency
+                };
+                dropdown.style.display = "none";
+            };
+            dropdown.appendChild(div);
+        });
+        document.getElementById('countryInput').onclick = () => dropdown.style.display = "block";
+    }
+
+    function filterDropdown() {
+        const query = document.getElementById('countryInput').value.toLowerCase();
+        const divs = document.getElementById('countryDropdown').querySelectorAll('div');
+        divs.forEach(d => {
+            const countryName = d.textContent.toLowerCase();
+            d.style.display = countryName.includes(query) ? "flex" : "none";
+        });
+        document.getElementById('countryDropdown').style.display = "block";
+    }
+
+    function saveSettings() {
+        updateTriggerButton();
+        togglePopup();
+    }
+
+    document.addEventListener('click', e => {
+        if (!document.getElementById('popupMenu').contains(e.target) && !document.querySelector('.trigger-btn').contains(e.target)) {
+            document.getElementById('popupMenu').style.display = 'none';
+        }
+        const dropdown = document.getElementById('countryDropdown');
+        if (!dropdown.parentElement.contains(e.target)) dropdown.style.display = 'none';
+    });
+
+    function detectUserCountry() {
+        fetch('http://ip-api.com/json/').then(res => res.json()).then(userLoc => {
+            const userCountry = countriesData.find(c => c.country.toLowerCase() === userLoc.country.toLowerCase());
+            if (userCountry) {
+                selectedCountry = userCountry;
+                updateTriggerButton();
+                document.getElementById("countryInput").value = userCountry.country;
+                isCountryLoaded = true;
+            } else {
+                document.getElementById('triggerBtn').textContent = "Select Country ⌄";
+            }
+        }).catch(err => {
+            console.error('Error fetching user location:', err);
+            document.getElementById('triggerBtn').textContent = "Select Country ⌄";
+        });
+    }
+
+    function updateTriggerButton() {
+        const button = document.getElementById('triggerBtn');
+        button.innerHTML = `<img id="flagIcon" class="flag-icon" src="/flags/4x3/${selectedCountry.flag}.svg" alt="${selectedCountry.flag}">
+<span id="triggerText">${selectedCountry.language.substring(0,2).toUpperCase()} / ${selectedCountry.currency} ⌄</span>`;
+    }
+
+</script>
+</body>
+</html>
+
+
+
+
